@@ -1,7 +1,8 @@
 # Projectile Interception RL Environment
 
 ### Project Description
-
+> [!NOTE]
+> **Hyperparameters:** The quantities mentioned below (3 rocks, 3 ball sources) are fully configurable hyperparameters and can be adjusted in the `consts.py` file.
 **The Game Rules:**
 1. **Defensive Units (Rocks):** The player controls 3 rocks. Each rock has a **firing cooldown** of 10 time steps.
 2. **Threats (Balls):** Incoming balls originate from **3 fixed sources** on the right side. Each source has a unique fixed distribution that dictates its launch frequency and launch angle.
