@@ -3,6 +3,7 @@ import numpy as np
 import random
 import math
 import consts
+import BallsClass
 
 
 class MultiBallBoard:
@@ -12,52 +13,37 @@ class MultiBallBoard:
         self.width = width
         self.height = height
         self.speed = speed
-        self.border = border  # לוקח מהקבוע, בלי לחשב מחדש
+        self.border = border
+
         self.num_balls = num_balls
         self.balls = []
+        self.ball_id_counter = 0
+        self.launchers = []
+        self.create_balls_lunchers()
+
         self.num_rocks = num_rocks
         self.rocks = []
-
-        self.reset_balls()
         self.reset_rocks()
 
-    def _create_ball(self, ball_id):
-        """פונקציית עזר ליצירת כדור בודד עם זווית חוקית"""
-        # 1. הגרלת גובה התחלה
-        start_y = random.uniform(0, self.height)
-        pos = np.array([float(self.width), start_y])
-
-        # 2. חישוב זווית מקסימלית (כדי למנוע פגיעה בתקרה לפני הקו)
-        dist_to_border = self.width - self.border
-        available_height = self.height - start_y
-
-        if available_height <= 0:
-            max_angle_deg = 0
-        else:
-            max_tan = available_height / dist_to_border
-            max_angle_deg = math.degrees(math.atan(max_tan))
-
-        # 3. בחירת זווית מהרשימה המותרת
-        possible_angles = range(0, 91, 10)
-        valid_angles = [a for a in possible_angles if a <= max_angle_deg + 0.1]
-        if not valid_angles: valid_angles = [0]
-
-        angle_deg = random.choice(valid_angles)
-        angle_rad = math.radians(angle_deg)
-
-        # 4. וקטור מהירות
-        vx = -self.speed * math.cos(angle_rad)
-        vy = self.speed * math.sin(angle_rad)
-        velocity = np.array([vx, vy])
-
-        return {
-            'id': ball_id,
-            'pos': pos,
-            'velocity': velocity,
-            'angle': angle_deg,
-            'trajectory': [pos.copy()],
-            'done': False
-        }
+    def create_balls_lunchers(self):
+        self.launchers.append(BallsClass.BallLauncher(
+            x_pos=self.width,
+            y_pos=self.height * 0.8,
+            speed=self.speed,
+            angle_mean=-20, angle_std=10, fire_prob=0.1,
+            border_x=self.border, board_height=self.height))
+        self.launchers.append(BallsClass.BallLauncher(
+            x_pos=self.width,
+            y_pos=self.height * 0.5,
+            speed=self.speed,
+            angle_mean=0, angle_std=25, fire_prob=0.05,
+            border_x=self.border, board_height=self.height))
+        self.launchers.append(BallsClass.BallLauncher(
+            x_pos=self.width,
+            y_pos=self.height * 0.2,
+            speed=self.speed,
+            angle_mean=20, angle_std=10, fire_prob=0.02,
+            border_x=self.border, board_height=self.height))
 
     def create_rock(self, rock_id):
         """פונקציית עזר ליצירת אבן"""
@@ -71,11 +57,10 @@ class MultiBallBoard:
             'pos': pos,
         }
 
-    def reset_balls(self):
+    def reset(self):
         self.balls = []
-        for i in range(self.num_balls):
-            self.balls.append(self._create_ball(i))
-        return self.balls
+        self.ball_id_counter = 0
+        self.rocks = []
 
     def reset_rocks(self):
         self.rocks = []
@@ -84,28 +69,28 @@ class MultiBallBoard:
         return self.rocks
 
     def step(self):
-        """מקדמת את כל הכדורים בצעד אחד"""
-        all_finished = True
+        for launcher in self.launchers:
+            new_ball = launcher.step()
+            if new_ball is not None:
+                # הוספת מזהה ייחודי לכדור
+                new_ball['id'] = self.ball_id_counter
+                self.ball_id_counter += 1
+                self.balls.append(new_ball)
 
+        # Updating balls locations
+        all_finished = True  # בדיקה האם נשארו כדורים פעילים (פחות רלוונטי כשיש משגרים אינסופיים, אבל שיהיה)
         for ball in self.balls:
             if ball['done']:
                 continue
-
-            all_finished = False
-
-            # עדכון מיקום
+            all_finished = False  # יש לפחות כדור אחד חי
             ball['pos'] += ball['velocity']
             ball['trajectory'].append(ball['pos'].copy())
-
-            # בדיקת תנאי עצירה לכדור הספציפי
             x, y = ball['pos']
-            if x <= self.border or y >= self.height or y <= 0:
+            if x <= self.border or y >= self.height or y <= 0:  # תנאי סיום: הגיע לגבול
                 ball['done'] = True
-
         return self.balls, all_finished
 
     def calc_rocks_directions(self):
-        """הלוגיקה המדויקת מהקוד שלך"""
         rock_ball_options = []
         for rock in self.rocks:
             for ball in self.balls:
